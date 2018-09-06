@@ -1087,7 +1087,8 @@ class Backend(Database):
         return g.db.users.find_one(query)
 
     def get_user_by_hash(self, hash):
-        query = {"hash": hash}
+        fifteen_mins_ago = datetime.utcnow() - timedelta(minutes=15)
+        query = {"hash": hash, "updateTime": {'$gt': fifteen_mins_ago}}
         return g.db.users.find_one(query)
 
     def update_last_login(self, id):

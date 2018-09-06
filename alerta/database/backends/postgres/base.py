@@ -1,6 +1,7 @@
+
 import time
 from collections import namedtuple
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import psycopg2
 from flask import current_app, g
@@ -526,11 +527,10 @@ class Backend(Database):
         return self._fetchall(select, query.vars)
 
     def is_blackout_period(self, alert):
-        now = datetime.utcnow()
         select = """
             SELECT *
             FROM blackouts
-            WHERE start_time <= %(now)s AND end_time > %(now)s
+            WHERE start_time <= NOW() AND end_time > NOW()
               AND environment=%(environment)s
               AND (
                  (resource IS NULL AND service='{}' AND event IS NULL AND "group" IS NULL AND tags='{}')
@@ -567,11 +567,9 @@ class Backend(Database):
               OR ( resource=%(resource)s AND service <@ %(service)s AND event=%(event)s AND "group"=%(group)s AND tags <@ %(tags)s )
                 )
         """
-        data = vars(alert)
-        data['now'] = now
         if current_app.config['CUSTOMER_VIEWS']:
             select += " AND (customer IS NULL OR customer=%(customer)s)"
-        if self._fetchone(select, data):
+        if self._fetchone(select, vars(alert)):
             return True
         return False
 
@@ -689,7 +687,7 @@ class Backend(Database):
         return self._fetchone(select, (email,))
 
     def get_user_by_hash(self, hash):
-        select = """SELECT * FROM users WHERE hash=%s"""
+        select = """SELECT * FROM users WHERE hash=%s AND update_time > (NOW() at time zone 'utc' - INTERVAL '15 minutes')"""
         return self._fetchone(select, (hash,))
 
     def update_last_login(self, id):
@@ -703,10 +701,10 @@ class Backend(Database):
     def set_email_hash(self, id, hash):
         update = """
             UPDATE users
-            SET hash=%s
+            SET hash=%s, update_time=%s
             WHERE id=%s
         """
-        return self._update(update, (hash, id))
+        return self._update(update, (hash, datetime.utcnow(), id))
 
     def update_user(self, id, **kwargs):
         kwargs['update_time'] = datetime.utcnow()

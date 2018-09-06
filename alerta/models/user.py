@@ -187,3 +187,7 @@ class User(object):
         if user and user.verify_password(password) and user.status == 'active':
             user.update_last_login()
             return user
+
+    def reset_password(self, password):
+        self.update(password=password)
+        self.set_email_hash(hash=None)
